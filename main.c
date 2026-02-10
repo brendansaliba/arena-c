@@ -23,12 +23,23 @@ typedef struct {
     uint64_t commit_pos;
 } mem_arena;
 
+typedef struct {
+    mem_arena* arena;
+    uint64_t start_pos;
+} mem_arena_temp;
+
 mem_arena* arena_create(uint64_t reserve_size, uint64_t commit_size);
 void arena_destroy(mem_arena* arena);
 void* arena_push(mem_arena* arena, uint64_t size, bool non_zero);
 void arena_pop(mem_arena* arena, uint64_t size);
 void arena_pop_to(mem_arena* arena, uint64_t pos);
 void arena_pop_clear(mem_arena* arena);
+
+mem_arena_temp arena_temp_begin(mem_arena* arena);
+void arena_temp_end(mem_arena_temp temp);
+
+mem_arena_temp arena_scratch_get(mem_arena** conflicts, uint32_t num_conflicts);
+void arena_scratch_release(mem_arena_temp scratch);
 
 #define PUSH_STRUCT(arena, T) (T*)arena_push(arena, sizeof(T), false)
 #define PUSH_STRUCT_NZ(arena, T) (T*)arena_push(arena, sizeof(T), true)
@@ -124,6 +135,56 @@ void arena_pop_to(mem_arena* arena, uint64_t pos) {
 void arena_pop_clear(mem_arena* arena) {
     arena_pop_to(arena, ARENA_BASE_POS);
 }
+
+mem_arena_temp arena_temp_begin(mem_arena* arena) {
+    return (mem_arena_temp) {
+        .arena = arena,
+        .start_pos = arena->pos
+    };
+}
+
+void arena_temp_end(mem_arena_temp temp) {
+    arena_pop_to(temp.arena, temp.start_pos);
+}
+
+__thread static mem_arena* _scratch_arenas[2] = {NULL, NULL};
+
+mem_arena_temp arena_scratch_get(mem_arena** conflicts, uint32_t num_conflicts) {
+    int32_t scratch_index  = -1;
+
+    for (int32_t i = 0; i<2; i++) {
+        bool conflict_found = false;
+
+        for (uint32_t j = 0; j < num_conflicts; j++) {
+            if (_scratch_arenas[i] == conflicts[j]) {
+                conflict_found = true;
+                break;
+            }
+        }
+
+        if (!conflict_found) {
+            scratch_index = i;
+            break;
+        }
+    }
+
+    if (scratch_index == -1) {
+        return (mem_arena_temp) { 0 };
+    }
+
+    mem_arena** selected = &_scratch_arenas[scratch_index];
+
+    if (*select == NULL) {
+        *selected = arena_create(MiB(64), MiB(1));
+    }
+
+    return arena_temp_begin(*selected);
+}
+
+void arena_scratch_release(mem_arena_temp scratch) {
+    arena_temp_end(scratch);
+}
+
 
 uint32_t plat_get_pagesize(void) {
     int size = getpagesize();
