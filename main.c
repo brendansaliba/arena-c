@@ -33,8 +33,9 @@ void arena_pop_clear(mem_arena* arena);
 
 int main(void) {
     mem_arena* perm_arena = arena_create(MiB(1));
-
+    printf("Arena created\n");
     arena_destroy(perm_arena);
+    printf("Arena destroyed\n");
 
     return 0;
 }
