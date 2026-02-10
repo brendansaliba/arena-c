@@ -1,11 +1,12 @@
 #include <stdint.h>
-#include<stdbool.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-#define KiB(n) ((uint64_t)(n)) << 10)
-#define MiB(n) ((uint64_t)(n)) << 20)
-#define GiB(n) ((uint64_t)(n)) << 30)
+#define KiB(n) ((uint64_t)(n) << 10)
+#define MiB(n) ((uint64_t)(n) << 20)
+#define GiB(n) ((uint64_t)(n) << 30)
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
@@ -25,8 +26,16 @@ void arena_pop(mem_arena* arena, uint64_t size);
 void arena_pop_to(mem_arena* arena, uint64_t pos);
 void arena_pop_clear(mem_arena* arena);
 
-void main(void) {
-    
+#define PUSH_STRUCT(arena, T) (T*)arena_push(arena, sizeof(T), false)
+#define PUSH_STRUCT_NZ(arena, T) (T*)arena_push(arena, sizeof(T), true)
+#define PUSH_ARRAY(arena, T, n) (T*)arena_push(arena, sizeof(T) * (n), false)
+#define PUSH_ARRAY_NZ(arena, T, n) (T*)arena_push(arena, sizeof(T) * (n), true)
+
+int main(void) {
+    mem_arena* perm_arena = arena_create(MiB(1));
+
+    arena_destroy(perm_arena);
+
     return 0;
 }
 
@@ -55,7 +64,7 @@ void* arena_push(mem_arena* arena, uint64_t size, bool non_zero) {
 
     arena->pos = new_pos;
 
-    uint8_t out = (uint8_t*)arena + pos_aligned;
+    uint8_t* out = (uint8_t*)arena + pos_aligned;
     
     if (!non_zero) {
         memset(out, 0 ,size);
